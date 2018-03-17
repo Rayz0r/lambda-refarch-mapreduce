@@ -72,7 +72,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	allObjects := listObjectsOutput.Contents
 
-	filesPerBatch := lambdautils.ComputeBatchSize(listObjectsOutput.Contents, lambdaMemory)
-	fmt.Println(filesPerBatch)
+	objectsPerBatch := lambdautils.ComputeBatchSize(allObjects, lambdaMemory)
+	fmt.Println(objectsPerBatch)
+	batches := lambdautils.BatchCreator(allObjects, objectsPerBatch)
+	fmt.Println(batches)
 }
