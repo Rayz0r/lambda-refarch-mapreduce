@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/seongju/lambda-refarch-mapreduce/src/go/lambdautils"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -32,7 +33,7 @@ type configFile struct {
 func main() {
 	//  JOB ID
 	jobID := os.Args[1]
-	fmt.Println("Starting job %s", jobID)
+	fmt.Printf("Starting job %s", jobID)
 
 	// Retrieve the values in driverconfig.json
 	raw, err := ioutil.ReadFile("./driverconfig.json")
@@ -51,6 +52,12 @@ func main() {
 	lambdaMemory := config.LambdaMemory
 	concurrentLambdas := config.ConcurrentLambdas
 
+	fmt.Println(bucket)
+	fmt.Println(jobBucket)
+	fmt.Println(region)
+	fmt.Println(lambdaMemory)
+	fmt.Println(concurrentLambdas)
+
 	// Fetch the keys that match the prefix from the config
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String("us-east-1"),
@@ -65,5 +72,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(listObjectsOutput)
+
+	filesPerBatch := lambdautils.ComputeBatchSize(listObjectsOutput.Contents, lambdaMemory)
+	fmt.Println(filesPerBatch)
 }
