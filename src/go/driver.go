@@ -18,7 +18,7 @@ type LambdaFunction struct {
 	Zip     string `json:"zip"`
 }
 
-type configFile struct {
+type ConfigFile struct {
 	Bucket             string         `json:"bucket"`
 	Prefix             string         `json:"prefix"`
 	JobBucket          string         `json:"jobBucket"`
@@ -40,7 +40,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	var config configFile
+	var config ConfigFile
 	err = json.Unmarshal(raw, &config)
 	if err != nil {
 		panic(err)
