@@ -30,10 +30,35 @@ type ConfigFile struct {
 	ReducerCoordinator LambdaFunction `json:"reducerCoordinator"`
 }
 
+type JobInfo struct {
+	JobID	string
+	JobBucket string
+	ReducerLambdaName string
+	ReducerHandler	string
+	numMappers	int
+}
+
+func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, numMappers int) error {
+	fileName := "jobconfig.json"
+	jobInfo := JobInfo{
+		jobID,
+		jobBucket,
+		reducerLambdaName,
+		reducerHandler,
+		numMappers,
+	}
+	jobInfoJSON, err := json.Marshal(jobInfo)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(fileName, jobInfoJSON, 0644)
+	return err
+}
+
 func main() {
 	//  JOB ID
 	jobID := os.Args[1]
-	fmt.Printf("Starting job %s", jobID)
+	fmt.Printf("Starting job %s\n", jobID)
 
 	// Retrieve the values in driverconfig.json
 	raw, err := ioutil.ReadFile("./driverconfig.json")
@@ -75,7 +100,20 @@ func main() {
 	allObjects := listObjectsOutput.Contents
 
 	objectsPerBatch := lambdautils.ComputeBatchSize(allObjects, lambdaMemory)
-	fmt.Println(objectsPerBatch)
 	batches := lambdautils.BatchCreator(allObjects, objectsPerBatch)
-	fmt.Println(batches)
+	numMappers := len(batches) 
+
+	lambdaPrefix := "BL"
+	mapperLambdaName := lambdaPrefix + "-mapper-" + jobID
+	reducerLambdaName := lambdaPrefix + "-reducer-" + jobID
+	reducerCoordinatorLambdaName := lambdaPrefix + "-reducer_coordinator-" + jobID
+
+	fmt.Println(mapperLambdaName)
+	fmt.Println(reducerLambdaName)
+	fmt.Println(reducerCoordinatorLambdaName)
+
+	err = writeJobConfig(jobID, jobBucket, reducerLambdaName, config.Reducer.Handler, numMappers)
+	if err != nil {
+		panic(err)
+	}
 }
