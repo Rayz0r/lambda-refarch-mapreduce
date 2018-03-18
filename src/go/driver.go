@@ -15,7 +15,7 @@ import (
 type LambdaFunction struct {
 	Name    string `json:"name"`
 	Handler string `json:"handler"`
-	Zip     string `json:"handler"`
+	Zip     string `json:"zip"`
 }
 
 type configFile struct {
@@ -27,7 +27,7 @@ type configFile struct {
 	ConcurrentLambdas  int            `json:"concurrentLambdas"`
 	Mapper             LambdaFunction `json:"mapper"`
 	Reducer            LambdaFunction `json:"reducer"`
-	ReducerCoordinator LambdaFunction `json:"reducerCoordinatory"`
+	ReducerCoordinator LambdaFunction `json:"reducerCoordinator"`
 }
 
 func main() {
