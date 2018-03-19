@@ -13,7 +13,7 @@ func ComputeBatchSize(allObjects []*s3.Object, lambdaMemory int) int {
 	}
 
 	avgObjectSize := totalSizeOfDataset / float64(len(allObjects))
-	fmt.Printf("Dataset size (bytes) %f, nKeys: %d, avg size (bytes): %f", totalSizeOfDataset, len(allObjects), avgObjectSize)
+	fmt.Printf("Dataset size (bytes) %f, nKeys: %d, avg size (bytes): %f\n", totalSizeOfDataset, len(allObjects), avgObjectSize)
 	maxMemoryForDataset := 0.6 * float64(lambdaMemory*1000*1000)
 	objectsPerBatch := int(maxMemoryForDataset / avgObjectSize) // Golang does not provide a round function in standard math
 	return objectsPerBatch
