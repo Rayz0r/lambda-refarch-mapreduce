@@ -1,15 +1,17 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 
-	"github.com/seongju/lambda-refarch-mapreduce/src/go/lambdautils"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/seongju/lambda-refarch-mapreduce/src/go/lambdautils"
 )
 
 type LambdaFunction struct {
@@ -31,11 +33,11 @@ type ConfigFile struct {
 }
 
 type JobInfo struct {
-	JobID	string
-	JobBucket string
+	JobID             string
+	JobBucket         string
 	ReducerLambdaName string
-	ReducerHandler	string
-	numMappers	int
+	ReducerHandler    string
+	numMappers        int
 }
 
 func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, numMappers int) error {
@@ -53,6 +55,51 @@ func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, 
 	}
 	err = ioutil.WriteFile(fileName, jobInfoJSON, 0644)
 	return err
+}
+
+// This function is from
+// https://golangcode.com/create-zip-files-in-go/
+func zipLambda(lambdaFileName, zipName string) error {
+	newFile, err := os.Create(zipName)
+	if err != nil {
+		return err
+	}
+	defer newFile.Close()
+
+	zipWriter := zip.NewWriter(newFile)
+	defer zipWriter.Close()
+
+	lambdaFile, err := os.Open(lambdaFileName)
+	if err != nil {
+		return err
+	}
+	defer lambdaFile.Close()
+
+	info, err := lambdaFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	header, err := zip.FileInfoHeader(info)
+	if err != nil {
+		return err
+	}
+
+	// Change to deflate to gain better compression
+	// see http://golang.org/pkg/archive/zip/#pkg-constants
+	header.Method = zip.Deflate
+
+	writer, err := zipWriter.CreateHeader(header)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(writer, lambdaFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func main() {
@@ -101,18 +148,33 @@ func main() {
 
 	objectsPerBatch := lambdautils.ComputeBatchSize(allObjects, lambdaMemory)
 	batches := lambdautils.BatchCreator(allObjects, objectsPerBatch)
-	numMappers := len(batches) 
+	numMappers := len(batches)
 
 	lambdaPrefix := "BL"
 	mapperLambdaName := lambdaPrefix + "-mapper-" + jobID
 	reducerLambdaName := lambdaPrefix + "-reducer-" + jobID
-	reducerCoordinatorLambdaName := lambdaPrefix + "-reducer_coordinator-" + jobID
+	reducerCoordinatorLambdaName := lambdaPrefix + "-reducerCoordinator-" + jobID
 
 	fmt.Println(mapperLambdaName)
 	fmt.Println(reducerLambdaName)
 	fmt.Println(reducerCoordinatorLambdaName)
 
 	err = writeJobConfig(jobID, jobBucket, reducerLambdaName, config.Reducer.Handler, numMappers)
+	if err != nil {
+		panic(err)
+	}
+
+	err = zipLambda(config.Mapper.Name, config.Mapper.Zip)
+	if err != nil {
+		panic(err)
+	}
+
+	err = zipLambda(config.Reducer.Name, config.Reducer.Zip)
+	if err != nil {
+		panic(err)
+	}
+
+	err = zipLambda(config.ReducerCoordinator.Name, config.ReducerCoordinator.Zip)
 	if err != nil {
 		panic(err)
 	}
