@@ -59,10 +59,11 @@ func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, 
 
 // This function is from
 // https://golangcode.com/create-zip-files-in-go/
-func zipLambda(lambdaFileName, zipName string) error {
+func zipLambda(lambdaFileName, zipName string, c chan error) {
 	newFile, err := os.Create(zipName)
 	if err != nil {
-		return err
+		c <- err
+		return
 	}
 	defer newFile.Close()
 
@@ -71,18 +72,21 @@ func zipLambda(lambdaFileName, zipName string) error {
 
 	lambdaFile, err := os.Open(lambdaFileName)
 	if err != nil {
-		return err
+		c <- err
+		return
 	}
 	defer lambdaFile.Close()
 
 	info, err := lambdaFile.Stat()
 	if err != nil {
-		return err
+		c <- err
+		return
 	}
 
 	header, err := zip.FileInfoHeader(info)
 	if err != nil {
-		return err
+		c <- err
+		return
 	}
 
 	// Change to deflate to gain better compression
@@ -91,15 +95,12 @@ func zipLambda(lambdaFileName, zipName string) error {
 
 	writer, err := zipWriter.CreateHeader(header)
 	if err != nil {
-		return err
+		c <- err
+		return
 	}
 
 	_, err = io.Copy(writer, lambdaFile)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	c <- err
 }
 
 func main() {
@@ -164,18 +165,15 @@ func main() {
 		panic(err)
 	}
 
-	err = zipLambda(config.Mapper.Name, config.Mapper.Zip)
-	if err != nil {
-		panic(err)
-	}
+	c := make(chan error, 3)
+	go zipLambda(config.Mapper.Name, config.Mapper.Zip, c)
+	go zipLambda(config.Reducer.Name, config.Reducer.Zip, c)
+	go zipLambda(config.ReducerCoordinator.Name, config.ReducerCoordinator.Zip, c)
 
-	err = zipLambda(config.Reducer.Name, config.Reducer.Zip)
-	if err != nil {
-		panic(err)
-	}
-
-	err = zipLambda(config.ReducerCoordinator.Name, config.ReducerCoordinator.Zip)
-	if err != nil {
-		panic(err)
+	for i := 0; i < 3; i++ {
+		err = <-c
+		if err != nil {
+			panic(err)
+		}
 	}
 }
