@@ -43,6 +43,25 @@ func (lm *LambdaManager) CreateLambdaFunction() error {
 	return err
 }
 
+func (lm *LambdaManager) UpdateFunction() error {
+	zipFileBytes, err := ioutil.ReadFile(lm.PathToZip)
+	if err != nil {
+		return err
+	}
+
+	updateFunctionCodeInput := &lambda.UpdateFunctionCodeInput{
+		FunctionName: &lm.LambdaName,
+		//Publish: true,
+		ZipFile: zipFileBytes,
+	}
+	functionConfig, err := lm.LambdaClient.UpdateFunctionCode(updateFunctionCodeInput)
+	if err != nil {
+		return err
+	}
+	fmt.Println(*functionConfig.FunctionArn)
+	return nil
+}
+
 func ComputeBatchSize(allObjects []*s3.Object, lambdaMemory int) int {
 	totalSizeOfDataset := 0.0
 
