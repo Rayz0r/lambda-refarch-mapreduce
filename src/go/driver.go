@@ -65,26 +65,31 @@ func zipLambda(lambdaFileName, zipName string, c chan error) {
 		c <- err
 		return
 	}
-	defer newFile.Close()
 
 	zipWriter := zip.NewWriter(newFile)
-	defer zipWriter.Close()
 
 	lambdaFile, err := os.Open(lambdaFileName)
 	if err != nil {
+		zipWriter.Close()
+		newFile.Close()
 		c <- err
 		return
 	}
-	defer lambdaFile.Close()
 
 	info, err := lambdaFile.Stat()
 	if err != nil {
+		lambdaFile.Close()
+		zipWriter.Close()
+		newFile.Close()
 		c <- err
 		return
 	}
 
 	header, err := zip.FileInfoHeader(info)
 	if err != nil {
+		lambdaFile.Close()
+		zipWriter.Close()
+		newFile.Close()
 		c <- err
 		return
 	}
@@ -95,11 +100,17 @@ func zipLambda(lambdaFileName, zipName string, c chan error) {
 
 	writer, err := zipWriter.CreateHeader(header)
 	if err != nil {
+		lambdaFile.Close()
+		zipWriter.Close()
+		newFile.Close()
 		c <- err
 		return
 	}
 
 	_, err = io.Copy(writer, lambdaFile)
+	lambdaFile.Close()
+	zipWriter.Close()
+	newFile.Close()
 	c <- err
 }
 
