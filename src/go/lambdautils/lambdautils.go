@@ -16,22 +16,13 @@ type LambdaManager struct {
 
 func (lm *LambdaManager) CreateLambdaFunction() error {
 	runtime := "python2.7"
-	/*
-	createFunctionInput := new(lambda.CreateFunctionInput)
-	createFunctionInput = createFunctionInput.SetFunctionName(lm.LambdaName)
-	createFunctionInput = createFunctionInput.SetHandler(lm.HandlerName)
-	createFunctionInput = createFunctionInput.SetRole(lm.Role)
-	createFunctionInput = createFunctionInput.SetRuntime(runtime)
-	createFunctionInput = createFunctionInput.SetMemorySize(lm.LambdaMemory)
-	createFunctionInput = createFunctionInput.SetTimeout(lm.Timeout)
-	*/
 	createFunctionInput := &lambda.CreateFunctionInput{
 		FunctionName: &lm.LambdaName,
-		Handler: &lm.HandlerName,
-		Role: &lm.Role,
-		Runtime: &runtime,
-		MemorySize: &lm.LambdaMemory,
-		Timeout: &lm.Timeout,
+		Handler:      &lm.HandlerName,
+		Role:         &lm.Role,
+		Runtime:      &runtime,
+		MemorySize:   &lm.LambdaMemory,
+		Timeout:      &lm.Timeout,
 	}
 
 	zipFileBytes, err := ioutil.ReadFile(lm.PathToZip)
