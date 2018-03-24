@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/seongju/lambda-refarch-mapreduce/src/go/lambdautils"
 )
@@ -167,10 +168,6 @@ func main() {
 	reducerLambdaName := lambdaPrefix + "-reducer-" + jobID
 	reducerCoordinatorLambdaName := lambdaPrefix + "-reducerCoordinator-" + jobID
 
-	fmt.Println(mapperLambdaName)
-	fmt.Println(reducerLambdaName)
-	fmt.Println(reducerCoordinatorLambdaName)
-
 	err = writeJobConfig(jobID, jobBucket, reducerLambdaName, config.Reducer.Handler, numMappers)
 	if err != nil {
 		panic(err)
@@ -187,4 +184,59 @@ func main() {
 			panic(err)
 		}
 	}
+
+	lambdaClient := lambda.New(sess)
+	mapperLambdaManager := &lambdautils.LambdaManager{
+		LambdaClient: lambdaClient,
+		S3Client:     s3Client,
+		Region:       "us-east-1",
+		PathToZip:    config.Mapper.Zip,
+		JobID:        jobID,
+		LambdaName:   mapperLambdaName,
+		HandlerName:  config.Mapper.Handler,
+		Role:         os.Getenv("serverless_mapreduce_role"),
+		LambdaMemory: 1536,
+		Timeout:      300,
+	}
+	err = mapperLambdaManager.CreateLambdaFunction()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Mapper Function ARN: %s\n", mapperLambdaManager.FunctionArn)
+
+	reducerLambdaManager := &lambdautils.LambdaManager{
+		LambdaClient: lambdaClient,
+		S3Client:     s3Client,
+		Region:       "us-east-1",
+		PathToZip:    config.Reducer.Zip,
+		JobID:        jobID,
+		LambdaName:   reducerLambdaName,
+		HandlerName:  config.Reducer.Handler,
+		Role:         os.Getenv("serverless_mapreduce_role"),
+		LambdaMemory: 1536,
+		Timeout:      300,
+	}
+	err = reducerLambdaManager.CreateLambdaFunction()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Reducer Function ARN: %s\n", reducerLambdaManager.FunctionArn)
+
+	reducerCoordLambdaManager := &lambdautils.LambdaManager{
+		LambdaClient: lambdaClient,
+		S3Client:     s3Client,
+		Region:       "us-east-1",
+		PathToZip:    config.ReducerCoordinator.Zip,
+		JobID:        jobID,
+		LambdaName:   reducerCoordinatorLambdaName,
+		HandlerName:  config.ReducerCoordinator.Handler,
+		Role:         os.Getenv("serverless_mapreduce_role"),
+		LambdaMemory: 1536,
+		Timeout:      300,
+	}
+	err = reducerCoordLambdaManager.CreateLambdaFunction()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Reducer Coordinator Function ARN: %s\n", reducerCoordLambdaManager.FunctionArn)
 }

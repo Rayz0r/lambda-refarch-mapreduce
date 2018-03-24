@@ -2,8 +2,55 @@ package lambdautils
 
 import (
 	"fmt"
+	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"io/ioutil"
 )
+
+type LambdaManager struct {
+	LambdaClient                                                         *lambda.Lambda
+	S3Client                                                             *s3.S3
+	Region, PathToZip, JobID, LambdaName, HandlerName, Role, FunctionArn string
+	LambdaMemory, Timeout                                                int64
+}
+
+func (lm *LambdaManager) CreateLambdaFunction() error {
+	runtime := "python2.7"
+	/*
+	createFunctionInput := new(lambda.CreateFunctionInput)
+	createFunctionInput = createFunctionInput.SetFunctionName(lm.LambdaName)
+	createFunctionInput = createFunctionInput.SetHandler(lm.HandlerName)
+	createFunctionInput = createFunctionInput.SetRole(lm.Role)
+	createFunctionInput = createFunctionInput.SetRuntime(runtime)
+	createFunctionInput = createFunctionInput.SetMemorySize(lm.LambdaMemory)
+	createFunctionInput = createFunctionInput.SetTimeout(lm.Timeout)
+	*/
+	createFunctionInput := &lambda.CreateFunctionInput{
+		FunctionName: &lm.LambdaName,
+		Handler: &lm.HandlerName,
+		Role: &lm.Role,
+		Runtime: &runtime,
+		MemorySize: &lm.LambdaMemory,
+		Timeout: &lm.Timeout,
+	}
+
+	zipFileBytes, err := ioutil.ReadFile(lm.PathToZip)
+	if err != nil {
+		return err
+	}
+
+	functionCode := &lambda.FunctionCode{
+		ZipFile: zipFileBytes,
+	}
+	createFunctionInput = createFunctionInput.SetCode(functionCode)
+
+	functionConfig, err := lm.LambdaClient.CreateFunction(createFunctionInput)
+	if err != nil {
+		return err
+	}
+	lm.FunctionArn = *functionConfig.FunctionArn
+	return err
+}
 
 func ComputeBatchSize(allObjects []*s3.Object, lambdaMemory int) int {
 	totalSizeOfDataset := 0.0
