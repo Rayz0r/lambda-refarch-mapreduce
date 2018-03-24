@@ -2,6 +2,7 @@ package lambdautils
 
 import (
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"io/ioutil"
@@ -14,7 +15,7 @@ type LambdaManager struct {
 	LambdaMemory, Timeout                                                int64
 }
 
-func (lm *LambdaManager) CreateLambdaFunction() error {
+func (lm *LambdaManager) CreateLambda() error {
 	runtime := "python2.7"
 	createFunctionInput := &lambda.CreateFunctionInput{
 		FunctionName: &lm.LambdaName,
@@ -40,10 +41,10 @@ func (lm *LambdaManager) CreateLambdaFunction() error {
 		return err
 	}
 	lm.FunctionArn = *functionConfig.FunctionArn
-	return err
+	return nil
 }
 
-func (lm *LambdaManager) UpdateFunction() error {
+func (lm *LambdaManager) UpdateLambda() error {
 	zipFileBytes, err := ioutil.ReadFile(lm.PathToZip)
 	if err != nil {
 		return err
@@ -58,7 +59,19 @@ func (lm *LambdaManager) UpdateFunction() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(*functionConfig.FunctionArn)
+	lm.FunctionArn = *functionConfig.FunctionArn
+	return nil
+}
+
+func (lm *LambdaManager) CreateOrUpdateLambda() error {
+	err := lm.CreateLambda()
+	if err != nil {
+		if awsErr, ok := err.(awserr.RequestFailure); ok && awsErr.StatusCode() == 409 {
+			fmt.Println("Functions already exist, updating")
+			err = lm.UpdateLambda()
+		}
+		return err
+	}
 	return nil
 }
 

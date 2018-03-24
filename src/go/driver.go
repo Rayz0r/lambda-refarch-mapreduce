@@ -198,7 +198,7 @@ func main() {
 		LambdaMemory: 1536,
 		Timeout:      300,
 	}
-	err = mapperLambdaManager.CreateLambdaFunction()
+	err = mapperLambdaManager.CreateOrUpdateLambda()
 	if err != nil {
 		panic(err)
 	}
@@ -216,7 +216,7 @@ func main() {
 		LambdaMemory: 1536,
 		Timeout:      300,
 	}
-	err = reducerLambdaManager.CreateLambdaFunction()
+	err = reducerLambdaManager.CreateOrUpdateLambda()
 	if err != nil {
 		panic(err)
 	}
@@ -234,7 +234,7 @@ func main() {
 		LambdaMemory: 1536,
 		Timeout:      300,
 	}
-	err = reducerCoordLambdaManager.CreateLambdaFunction()
+	err = reducerCoordLambdaManager.CreateOrUpdateLambda()
 	if err != nil {
 		panic(err)
 	}
