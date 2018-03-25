@@ -61,7 +61,7 @@
                 "s3:PutObjectVersionAcl"
             ],
             "Resource": [
-                "arn:aws:s3:::seongju-biglambda-s3/*"
+                "arn:aws:s3:::biglambda-s3-bucket-sr18/*"
             ]
         },
         {
