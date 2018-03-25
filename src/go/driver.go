@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -234,9 +235,17 @@ func main() {
 		LambdaMemory: 1536,
 		Timeout:      300,
 	}
+
 	err = reducerCoordLambdaManager.CreateOrUpdateLambda()
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("Reducer Coordinator Function ARN: %s\n", reducerCoordLambdaManager.FunctionArn)
+	
+	// Give the bucket invoke permission on the lambda
+	err = reducerCoordLambdaManager.AddLambdaPermission(string(rand.Intn(1000)), "arn:aws:s3:::" + bucket)
+	if err != nil {
+		panic(err)
+	}
+
 }

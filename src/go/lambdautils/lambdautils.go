@@ -75,6 +75,24 @@ func (lm *LambdaManager) CreateOrUpdateLambda() error {
 	return nil
 }
 
+func (lm *LambdaManager) AddLambdaPermission(sid, bucketArn string) error {
+	principal := "s3.amazonaws.com"
+	action := "lambda:InvokeFunction"
+	addPermissionInput := &lambda.AddPermissionInput{
+		Action:      	&action,
+		FunctionName: &lm.LambdaName,
+		Principal:    &principal,
+		SourceArn:    &bucketArn,
+		StatementId:  &sid,
+	}
+	addPermissionOutput, err := lm.LambdaClient.AddPermission(addPermissionInput)
+	if err != nil {
+		return err
+	}
+	fmt.Println(addPermissionOutput)
+	return nil
+}
+
 func ComputeBatchSize(allObjects []*s3.Object, lambdaMemory int) int {
 	totalSizeOfDataset := 0.0
 
