@@ -1,7 +1,7 @@
 {
     "jobId": "bl-release",
     "jobBucket": "biglambda-s3-bucket-sr18",
-    "mapCount": 29,
+    "mapCount": 15,
     "reducerFunction": "BL-reducer-bl-release",
     "reducerHandler": "reducer.lambda_handler"
 }

@@ -16,6 +16,7 @@
  * permissions and limitations under the License. 
 '''
 
+import botocore
 import boto3
 import json
 import math
@@ -35,7 +36,9 @@ from functools import partial
 # create an S3 session
 s3 = boto3.resource('s3')
 s3_client = boto3.client('s3')
-lambda_client = boto3.client('lambda')
+config = botocore.config.Config(connect_timeout=300, read_timeout=300)
+lambda_client = boto3.client('lambda', region_name='us-east-1', config=config)
+## lambda_client = boto3.client('lambda')
 
 JOB_INFO = 'jobinfo.json'
 

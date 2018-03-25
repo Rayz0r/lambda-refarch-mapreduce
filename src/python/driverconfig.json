@@ -3,7 +3,7 @@
       "prefix": "pavlo/text/1node/uservisits/",
       "jobBucket": "biglambda-s3-bucket-sr18",
       "region": "us-east-1",
-      "lambdaMemory": 1536,
+      "lambdaMemory": 2944,
       "concurrentLambdas": 100,
       "mapper": {
             "name": "mapper.py",
