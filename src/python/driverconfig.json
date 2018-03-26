@@ -1,5 +1,5 @@
 {
-      "bucket": "big-data-benchmark",
+      "bucket": "biglambda-s3-bucket-sr18",
       "prefix": "pavlo/text/1node/uservisits/",
       "jobBucket": "biglambda-s3-bucket-sr18",
       "region": "us-east-1",

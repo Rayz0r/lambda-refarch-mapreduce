@@ -260,6 +260,7 @@ print("S3 Request Cost", s3_get_cost + s3_put_cost)
 print("S3 Cost", s3_cost)
 print("Total Cost: ", lambda_cost + s3_cost)
 print("Total Lines:", total_lines)
+print("Total Run Time:", total_lambda_secs)
 
 
 # Delete Reducer function
