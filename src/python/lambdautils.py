@@ -17,7 +17,7 @@ import botocore
 import os
 
 class LambdaManager(object):
-    def __init__ (self, l, s3, region, codepath, job_id, fname, handler, lmem=1536):
+    def __init__ (self, l, s3, region, codepath, job_id, fname, handler, lmem=3008):
         self.awslambda = l;
         self.region = "us-east-1" if region is None else region
         self.s3 = s3
@@ -135,7 +135,7 @@ def compute_batch_size(keys, lambda_memory, gzip=False):
     avg_object_size = size/len(keys)
     print("Dataset size: %s, nKeys: %s, avg: %s" %(size, len(keys), avg_object_size))
     b_size = int(round(max_mem_for_data/avg_object_size))
-    return b_size 
+    return 1
 
 def batch_creator(all_keys, batch_size):
     '''

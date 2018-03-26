@@ -15,7 +15,6 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License. 
 '''
-
 import botocore
 import boto3
 import json
@@ -27,18 +26,28 @@ import sys
 import time
 
 import lambdautils
+# from aws_xray_sdk.core import patch
+#libs_to_patch = ('boto3', 'requests')
+#patch(libs_to_patch)
 
 import glob
 import subprocess 
 from multiprocessing.dummy import Pool as ThreadPool
 from functools import partial
 
+
+
 # create an S3 session
 s3 = boto3.resource('s3')
 s3_client = boto3.client('s3')
+
 config = botocore.config.Config(connect_timeout=300, read_timeout=300)
-lambda_client = boto3.client('lambda', region_name='us-east-1', config=config)
-## lambda_client = boto3.client('lambda')
+lambda_client = client = boto3.client('lambda', config=config)
+# lambda_client = boto3.client('lambda', config=Config(read_timeout=300))
+# Override Boto Timeout for Lambda
+# config = Config(connect_timeout=30, read_timeout=300)
+# lambda_client = boto3.client('lambda', region_name='us-east-1', config=config)
+# lambda_client = boto3.client('lambda')
 
 JOB_INFO = 'jobinfo.json'
 
@@ -78,6 +87,8 @@ bucket = config["bucket"]
 job_bucket = config["jobBucket"]
 region = config["region"]
 lambda_memory = config["lambdaMemory"]
+connect_timeout = config["connect_timeout"]
+read_timeout = config["read_timeout"]
 concurrent_lambdas = config["concurrentLambdas"]
 #all_keys = s3_client.list_objects(Bucket=bucket, Prefix=config["prefix"])["Contents"]
 
@@ -225,7 +236,7 @@ while True:
                 reducer_lambda_time += float(s3.Object(job_bucket, key).metadata['processingtime'])
                 reducer_keys.append(key)
         break
-    time.sleep(5)
+    time.sleep(3)
 
 # S3 Storage cost - Account for mappers only; This cost is neglibile anyways since S3 
 # costs 3 cents/GB/month
