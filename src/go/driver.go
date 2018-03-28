@@ -2,19 +2,29 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"math/rand"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/seongju/lambda-refarch-mapreduce/src/go/lambdautils"
 )
+
+type JobData struct {
+	MapCount int `json:"n_mapper"`
+	TotalS3Files int `json:"totalS3Files"`
+	StartTime	float64 `json:"startTime"`
+}
 
 type LambdaFunction struct {
 	Name    string `json:"name"`
@@ -59,7 +69,18 @@ func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, 
 	return err
 }
 
-// This function is from
+func writeToS3(sess *session.Session, bucket, key string, data []byte) error {
+	reader := bytes.NewReader(data)
+	uploader := s3manager.NewUploader(sess)
+	_, err := uploader.Upload(&s3manager.UploadInput{
+		Body: reader,
+		Bucket: &bucket,
+		Key: &key,
+	})
+	return err
+}
+
+// This function is heavily influenced by
 // https://golangcode.com/create-zip-files-in-go/
 func zipLambda(lambdaFileName, zipName string, c chan error) {
 	newFile, err := os.Create(zipName)
@@ -248,4 +269,19 @@ func main() {
 		panic(err)
 	}
 
+	// Write job data to S3
+	jobData := JobData{
+		MapCount: numMappers,
+		TotalS3Files: len(allObjects),
+		StartTime: float64(time.Now().UnixNano())*math.Pow10(-9),
+	}
+	jobDataJSON, err := json.Marshal(jobData)
+	if err != nil {
+		panic(err)
+	}
+
+	err = writeToS3(sess, jobBucket, jobID+"/jobdata", jobDataJSON)
+	if err != nil {
+		panic(err)
+	}
 }
