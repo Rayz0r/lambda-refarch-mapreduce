@@ -52,6 +52,14 @@ type JobInfo struct {
 	numMappers        int
 }
 
+type LambdaPayload struct {
+	Bucket string `json:"bucket"`
+	Keys []string `json:"keys"`
+	JobBucket string `json:"jobBucket"`
+	JobID string `json:"jobId"`
+	MapperID int `json:"mapperId"`
+}
+
 func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, numMappers int) error {
 	fileName := "jobconfig.json"
 	jobInfo := JobInfo{
@@ -135,6 +143,38 @@ func zipLambda(lambdaFileName, zipName string, c chan error) {
 	zipWriter.Close()
 	newFile.Close()
 	c <- err
+}
+
+func invokeLambda(lambdaClient *lambda.Lambda, batch []string, mapperID int, mapperLambdaName *string, bucket, jobBucket, jobID string) error {
+	payload, err := json.Marshal(LambdaPayload{
+		Bucket: bucket,
+		Keys: batch,
+		JobBucket: jobBucket,
+		JobID: jobID,
+		MapperID: mapperID,
+	})
+	
+	if err != nil {
+		return err
+	}
+
+	invokeInput := &lambda.InvokeInput{
+		FunctionName: mapperLambdaName,
+		Payload: payload,
+	}
+
+	invokeOutput, err := lambdaClient.Invoke(invokeInput)
+	if err != nil {
+		return err
+	}
+
+	var output []string
+	err = json.Unmarshal(invokeOutput.Payload, &output)
+	if err != nil {
+		return err
+	}
+	fmt.Println(output)
+	return nil
 }
 
 func main() {
@@ -281,6 +321,11 @@ func main() {
 	}
 
 	err = writeToS3(sess, jobBucket, jobID+"/jobdata", jobDataJSON)
+	if err != nil {
+		panic(err)
+	}
+
+	err = invokeLambda(lambdaClient, batches[0], 1, &mapperLambdaName, bucket, jobBucket, jobID)
 	if err != nil {
 		panic(err)
 	}
