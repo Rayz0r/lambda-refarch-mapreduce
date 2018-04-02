@@ -10,9 +10,11 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -21,9 +23,9 @@ import (
 )
 
 type JobData struct {
-	MapCount int `json:"n_mapper"`
-	TotalS3Files int `json:"totalS3Files"`
-	StartTime	float64 `json:"startTime"`
+	MapCount     int     `json:"n_mapper"`
+	TotalS3Files int     `json:"totalS3Files"`
+	StartTime    float64 `json:"startTime"`
 }
 
 type LambdaFunction struct {
@@ -53,11 +55,16 @@ type JobInfo struct {
 }
 
 type LambdaPayload struct {
-	Bucket string `json:"bucket"`
-	Keys []string `json:"keys"`
-	JobBucket string `json:"jobBucket"`
-	JobID string `json:"jobId"`
-	MapperID int `json:"mapperId"`
+	Bucket    string   `json:"bucket"`
+	Keys      []string `json:"keys"`
+	JobBucket string   `json:"jobBucket"`
+	JobID     string   `json:"jobId"`
+	MapperID  int      `json:"mapperId"`
+}
+
+type InvokeLambdaResult struct {
+	Payload []string
+	Error   error
 }
 
 func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, numMappers int) error {
@@ -81,9 +88,9 @@ func writeToS3(sess *session.Session, bucket, key string, data []byte) error {
 	reader := bytes.NewReader(data)
 	uploader := s3manager.NewUploader(sess)
 	_, err := uploader.Upload(&s3manager.UploadInput{
-		Body: reader,
+		Body:   reader,
 		Bucket: &bucket,
-		Key: &key,
+		Key:    &key,
 	})
 	return err
 }
@@ -145,36 +152,40 @@ func zipLambda(lambdaFileName, zipName string, c chan error) {
 	c <- err
 }
 
-func invokeLambda(lambdaClient *lambda.Lambda, batch []string, mapperID int, mapperLambdaName *string, bucket, jobBucket, jobID string) error {
+func invokeLambda(lambdaClient *lambda.Lambda, batch []string, mapperID int, mapperLambdaName *string, bucket, jobBucket, jobID string, c chan InvokeLambdaResult) {
+	var result []string
 	payload, err := json.Marshal(LambdaPayload{
-		Bucket: bucket,
-		Keys: batch,
+		Bucket:    bucket,
+		Keys:      batch,
 		JobBucket: jobBucket,
-		JobID: jobID,
-		MapperID: mapperID,
+		JobID:     jobID,
+		MapperID:  mapperID,
 	})
-	
+
 	if err != nil {
-		return err
+		c <- InvokeLambdaResult{result, err}
+		return
 	}
 
 	invokeInput := &lambda.InvokeInput{
 		FunctionName: mapperLambdaName,
-		Payload: payload,
+		Payload:      payload,
 	}
 
 	invokeOutput, err := lambdaClient.Invoke(invokeInput)
 	if err != nil {
-		return err
+		c <- InvokeLambdaResult{result, err}
+		return
 	}
 
-	var output []string
-	err = json.Unmarshal(invokeOutput.Payload, &output)
+	err = json.Unmarshal(invokeOutput.Payload, &result)
 	if err != nil {
-		return err
+		c <- InvokeLambdaResult{result, err}
+		return
 	}
-	fmt.Println(output)
-	return nil
+	fmt.Println(result)
+	c <- InvokeLambdaResult{result, nil}
+	return
 }
 
 func main() {
@@ -302,18 +313,22 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("Reducer Coordinator Function ARN: %s\n", reducerCoordLambdaManager.FunctionArn)
-	
+
 	// Give the bucket invoke permission on the lambda
-	err = reducerCoordLambdaManager.AddLambdaPermission(string(rand.Intn(1000)), "arn:aws:s3:::" + bucket)
+	err = reducerCoordLambdaManager.AddLambdaPermission(string(rand.Intn(1000)), "arn:aws:s3:::"+bucket)
 	if err != nil {
-		panic(err)
+		if awsErr, ok := err.(awserr.RequestFailure); ok && awsErr.StatusCode() == 409 {
+			fmt.Println("Statement already exists on Reducer Coordinator")
+		} else {
+			panic(err)
+		}
 	}
 
 	// Write job data to S3
 	jobData := JobData{
-		MapCount: numMappers,
+		MapCount:     numMappers,
 		TotalS3Files: len(allObjects),
-		StartTime: float64(time.Now().UnixNano())*math.Pow10(-9),
+		StartTime:    float64(time.Now().UnixNano()) * math.Pow10(-9),
 	}
 	jobDataJSON, err := json.Marshal(jobData)
 	if err != nil {
@@ -325,8 +340,36 @@ func main() {
 		panic(err)
 	}
 
-	err = invokeLambda(lambdaClient, batches[0], 1, &mapperLambdaName, bucket, jobBucket, jobID)
-	if err != nil {
-		panic(err)
+	resultChannel := make(chan InvokeLambdaResult, numMappers)
+	for mapperID := 0; mapperID < numMappers; mapperID += 1 {
+		go invokeLambda(lambdaClient, batches[mapperID], mapperID, &mapperLambdaName, bucket, jobBucket, jobID, resultChannel)
 	}
+
+	var totalS3GetOps int
+	var totalLines int
+	var totalLambdaSecs float64
+
+	for i := 0; i < numMappers; i += 1 {
+		result := <-resultChannel
+		if result.Error != nil {
+			panic(result.Error)
+		}
+		// TODO should check for length of 4 in result.Payload to see if the Lambda returned an error
+		s3GetOps, err := strconv.Atoi(result.Payload[0])
+		if err != nil {
+			panic(err)
+		}
+		totalS3GetOps += s3GetOps
+		numLines, err := strconv.Atoi(result.Payload[1])
+		if err != nil {
+			panic(err)
+		}
+		totalLines += numLines
+		seconds, err := strconv.ParseFloat(result.Payload[2], 64)
+		if err != nil {
+			panic(err)
+		}
+		totalLambdaSecs += seconds
+	}
+	fmt.Printf("Total seconds %f\nTotal lines %d\nTotal S3 operations %d\n", totalLambdaSecs, totalLines, totalS3GetOps)
 }
