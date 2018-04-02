@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"math"
 	"math/rand"
@@ -67,8 +66,10 @@ type InvokeLambdaResult struct {
 	Error   error
 }
 
+const JobInfoFile = "jobinfo.json"
+
 func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, numMappers int) error {
-	fileName := "jobconfig.json"
+	fileName := JobInfoFile
 	jobInfo := JobInfo{
 		jobID,
 		jobBucket,
@@ -95,60 +96,38 @@ func writeToS3(sess *session.Session, bucket, key string, data []byte) error {
 	return err
 }
 
-// This function is heavily influenced by
-// https://golangcode.com/create-zip-files-in-go/
 func zipLambda(lambdaFileName, zipName string, c chan error) {
-	newFile, err := os.Create(zipName)
+	zipFile, err := os.Create(zipName)
 	if err != nil {
 		c <- err
 		return
 	}
-
-	zipWriter := zip.NewWriter(newFile)
-
-	lambdaFile, err := os.Open(lambdaFileName)
+	w := zip.NewWriter(zipFile)
+	// TODO change from python lambda utils to go
+	files := []string{"lambdautils.py", JobInfoFile, lambdaFileName}
+	for _, fileName := range files {
+		f, err := w.Create(fileName)
+		if err != nil {
+			c <- err
+			return
+		}
+		fileBytes, err := ioutil.ReadFile(fileName)
+		if err != nil {
+			c <- err
+			return
+		}
+		_, err = f.Write(fileBytes)
+		if err != nil {
+			c <- err
+			return
+		}
+	}
+	err = w.Close()
 	if err != nil {
-		zipWriter.Close()
-		newFile.Close()
 		c <- err
 		return
 	}
-
-	info, err := lambdaFile.Stat()
-	if err != nil {
-		lambdaFile.Close()
-		zipWriter.Close()
-		newFile.Close()
-		c <- err
-		return
-	}
-
-	header, err := zip.FileInfoHeader(info)
-	if err != nil {
-		lambdaFile.Close()
-		zipWriter.Close()
-		newFile.Close()
-		c <- err
-		return
-	}
-
-	// Change to deflate to gain better compression
-	// see http://golang.org/pkg/archive/zip/#pkg-constants
-	header.Method = zip.Deflate
-
-	writer, err := zipWriter.CreateHeader(header)
-	if err != nil {
-		lambdaFile.Close()
-		zipWriter.Close()
-		newFile.Close()
-		c <- err
-		return
-	}
-
-	_, err = io.Copy(writer, lambdaFile)
-	lambdaFile.Close()
-	zipWriter.Close()
-	newFile.Close()
+	zipFile.Close()
 	c <- err
 }
 
@@ -340,6 +319,7 @@ func main() {
 		panic(err)
 	}
 
+	// TODO respect concurrentLambdas variable
 	resultChannel := make(chan InvokeLambdaResult, numMappers)
 	for mapperID := 0; mapperID < numMappers; mapperID += 1 {
 		go invokeLambda(lambdaClient, batches[mapperID], mapperID, &mapperLambdaName, bucket, jobBucket, jobID, resultChannel)
