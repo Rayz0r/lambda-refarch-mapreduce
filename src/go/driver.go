@@ -315,7 +315,7 @@ func main() {
 	fmt.Printf("Reducer Coordinator Function ARN: %s\n", reducerCoordLambdaManager.FunctionArn)
 
 	// Give the bucket invoke permission on the lambda
-	err = reducerCoordLambdaManager.AddLambdaPermission(string(rand.Intn(1000)), "arn:aws:s3:::"+bucket)
+	err = reducerCoordLambdaManager.AddLambdaPermission(string(rand.Intn(1000)), "arn:aws:s3:::"+jobBucket)
 	if err != nil {
 		if awsErr, ok := err.(awserr.RequestFailure); ok && awsErr.StatusCode() == 409 {
 			fmt.Println("Statement already exists on Reducer Coordinator")
