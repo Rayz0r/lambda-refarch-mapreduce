@@ -44,6 +44,14 @@ func (lm *LambdaManager) CreateLambda() error {
 	return nil
 }
 
+func (lm *LambdaManager) DeleteLambda() error {
+	deleteFunctionInput := &lambda.DeleteFunctionInput{
+		FunctionName: &lm.LambdaName,
+	}
+	_, err := lm.LambdaClient.DeleteFunction(deleteFunctionInput)
+	return err
+}
+
 func (lm *LambdaManager) UpdateLambda() error {
 	zipFileBytes, err := ioutil.ReadFile(lm.PathToZip)
 	if err != nil {
@@ -79,7 +87,7 @@ func (lm *LambdaManager) AddLambdaPermission(sid, bucketArn string) error {
 	principal := "s3.amazonaws.com"
 	action := "lambda:InvokeFunction"
 	addPermissionInput := &lambda.AddPermissionInput{
-		Action:      	&action,
+		Action:       &action,
 		FunctionName: &lm.LambdaName,
 		Principal:    &principal,
 		SourceArn:    &bucketArn,
