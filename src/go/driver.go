@@ -46,11 +46,11 @@ type ConfigFile struct {
 }
 
 type JobInfo struct {
-	JobID             string
-	JobBucket         string
-	ReducerLambdaName string
-	ReducerHandler    string
-	numMappers        int
+	JobID             string `json:"jobId"`
+	JobBucket         string `json:"jobBucket"`
+	ReducerLambdaName string `json:"reducerFunction"`
+	ReducerHandler    string `json:"reducerHandler"`
+	numMappers        int    `json:"mapCount"`
 }
 
 type LambdaPayload struct {
