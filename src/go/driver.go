@@ -255,6 +255,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("Mapper Function ARN: %s\n", mapperLambdaManager.FunctionArn)
+	defer mapperLambdaManager.DeleteLambda()
 
 	reducerLambdaManager := &lambdautils.LambdaManager{
 		LambdaClient: lambdaClient,
@@ -273,6 +274,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("Reducer Function ARN: %s\n", reducerLambdaManager.FunctionArn)
+	defer reducerLambdaManager.DeleteLambda()
 
 	reducerCoordLambdaManager := &lambdautils.LambdaManager{
 		LambdaClient: lambdaClient,
@@ -292,8 +294,8 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("Reducer Coordinator Function ARN: %s\n", reducerCoordLambdaManager.FunctionArn)
+	defer reducerCoordLambdaManager.DeleteLambda()
 
-	// Give the bucket invoke permission on the lambda
 	err = reducerCoordLambdaManager.AddLambdaPermission(string(rand.Intn(1000)), "arn:aws:s3:::"+jobBucket)
 	if err != nil {
 		if awsErr, ok := err.(awserr.RequestFailure); ok && awsErr.StatusCode() == 409 {
