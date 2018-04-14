@@ -50,7 +50,7 @@ type JobInfo struct {
 	JobBucket         string `json:"jobBucket"`
 	ReducerLambdaName string `json:"reducerFunction"`
 	ReducerHandler    string `json:"reducerHandler"`
-	numMappers        int    `json:"mapCount"`
+	MapCount        int    `json:"mapCount"`
 }
 
 type LambdaPayload struct {
@@ -68,14 +68,14 @@ type InvokeLambdaResult struct {
 
 const JobInfoFile = "jobinfo.json"
 
-func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, numMappers int) error {
+func writeJobConfig(jobID, jobBucket, reducerLambdaName, reducerHandler string, mapCount int) error {
 	fileName := JobInfoFile
 	jobInfo := JobInfo{
 		jobID,
 		jobBucket,
 		reducerLambdaName,
 		reducerHandler,
-		numMappers,
+		mapCount,
 	}
 	jobInfoJSON, err := json.Marshal(jobInfo)
 	if err != nil {
