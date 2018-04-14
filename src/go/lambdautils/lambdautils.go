@@ -101,6 +101,43 @@ func (lm *LambdaManager) AddLambdaPermission(sid, bucketArn string) error {
 	return nil
 }
 
+func (lm *LambdaManager) CreateS3EventSourceNotification(bucket, prefix string) error {
+	key := "prefix"
+	value := prefix + "/task"
+	rule := &s3.FilterRule{
+		Name: &key,
+		Value: &value,
+	}
+
+	filterRules := []*s3.FilterRule{rule}
+	keyFilter := &s3.KeyFilter{
+		FilterRules: filterRules,
+	}
+
+	notificationConfigfilter := &s3.NotificationConfigurationFilter{
+		Key: keyFilter,
+	}
+
+	event := "s3:ObjectCreated:*"
+	events := []*string{&event}
+
+	lambdaFunctionConfig := &s3.LambdaFunctionConfiguration{
+		Events: events,
+		Filter: notificationConfigfilter,
+		LambdaFunctionArn: &lm.FunctionArn,
+	}
+
+	lambdaFunctionConfigs := []*s3.LambdaFunctionConfiguration{lambdaFunctionConfig}
+	input := &s3.PutBucketNotificationConfigurationInput{
+		Bucket: &bucket,
+		NotificationConfiguration: &s3.NotificationConfiguration{
+			LambdaFunctionConfigurations: lambdaFunctionConfigs,
+		},
+	}
+	_, err := lm.S3Client.PutBucketNotificationConfiguration(input)
+	return err
+}
+
 func ComputeBatchSize(allObjects []*s3.Object, lambdaMemory int) int {
 	totalSizeOfDataset := 0.0
 

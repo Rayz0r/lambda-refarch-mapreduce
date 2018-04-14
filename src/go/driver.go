@@ -305,6 +305,11 @@ func main() {
 		}
 	}
 
+	err = reducerCoordLambdaManager.CreateS3EventSourceNotification(jobBucket, jobID)
+	if err != nil {
+		panic(err)
+	}
+
 	// Write job data to S3
 	jobData := JobData{
 		MapCount:     numMappers,
