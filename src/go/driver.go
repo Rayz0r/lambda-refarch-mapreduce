@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -358,5 +359,85 @@ func main() {
 		}
 		totalLambdaSecs += seconds
 	}
-	fmt.Printf("Total seconds %f\nTotal lines %d\nTotal S3 operations %d\n", totalLambdaSecs, totalLines, totalS3GetOps)
+
+	var totalS3Size int64
+	var jobDone = false
+	var reducerFileExists = false
+	var keys []string
+	var reducerLambdaTime float64
+	resultFile := jobID + "/result"
+	reducerFile := "task/reducer"
+
+	for !jobDone {
+		fmt.Println("Checking to see if job is done")
+		listObjectsInput = &s3.ListObjectsInput{
+			Bucket: &jobBucket,
+			Prefix: &jobID,
+		}
+		listObjectsOutput, err = s3Client.ListObjects(listObjectsInput)
+		if err != nil {
+			panic(err)
+		}
+		allObjects = listObjectsOutput.Contents
+		keys = []string{}
+		for _, object := range allObjects {
+			key := *object.Key
+			if key == resultFile {
+				jobDone = true
+			} else if strings.Contains(key, reducerFile) {
+				reducerFileExists = true
+			}
+			keys = append(keys, key)
+			totalS3Size += *object.Size
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	fmt.Println("Job is done")
+	headObjectInput := &s3.HeadObjectInput{
+		Bucket: &jobBucket,
+		Key:    &resultFile,
+	}
+	headObjectOutput, err := s3Client.HeadObject(headObjectInput)
+	if err != nil {
+		panic(err)
+	}
+	reducerLambdaTime, err = strconv.ParseFloat(*headObjectOutput.Metadata["Processingtime"], 64)
+
+	if reducerFileExists {
+		headObjectInput = &s3.HeadObjectInput{
+			Bucket: &jobBucket,
+			Key:    &reducerFile,
+		}
+		headObjectOutput, err := s3Client.HeadObject(headObjectInput)
+		if err != nil {
+			panic(err)
+		}
+		lambdaTime, err := strconv.ParseFloat(*headObjectOutput.Metadata["Processingtime"], 64)
+		if err != nil {
+			panic(err)
+		}
+		reducerLambdaTime += lambdaTime
+	}
+
+	// S3 Storage cost - Account for mappers only; This cost is neglibile anyways since S3
+	// costs 3 cents/GB/month
+	s3StorageHourCost := 0.0000521574022522109 * (float64(totalS3Size) / 1024.0 / 1024.0 / 1024.0) // cost per GB/hr
+	s3PutCost := float64(len(allObjects)) * 0.005 / float64(1000)
+
+	// S3 GET # $0.004/10000
+	totalS3GetOps += len(allObjects)
+	s3GetCost := float64(totalS3GetOps) * 0.004 / float64(10000)
+
+	// Total Lambda costs
+	totalLambdaSecs += reducerLambdaTime
+	lambdaCost := float64(totalLambdaSecs) * 0.00001667 * float64(lambdaMemory) / 1024.0
+	s3Cost := (s3GetCost + s3PutCost + s3StorageHourCost)
+	fmt.Printf("Reducer Lambda Cost: %f\n", float64(reducerLambdaTime)*0.00001667*float64(lambdaMemory)/1024.0)
+	fmt.Printf("Lambda Cost: %f\n", lambdaCost)
+	fmt.Printf("S3 Storage Cost: %f\n", s3StorageHourCost)
+	fmt.Printf("S3 Request Cost: %f\n", s3GetCost+s3PutCost)
+	fmt.Printf("S3 Cost: %f\n", s3Cost)
+	fmt.Printf("Total Cost: %f\n", lambdaCost+s3Cost)
+	fmt.Printf("Total Lines: %d\n", totalLines)
 }
